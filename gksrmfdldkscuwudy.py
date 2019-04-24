@@ -45,7 +45,7 @@ COMP_MIDDLE = [
 
 # 완성된 종성
 COMP_LAST = [
-    ' ', 'ㄱ', 'ㄲ', 'ㄳ', 'ㄴ', 'ㄵ', 'ㄶ', 'ㄷ', 'ㄹ', 'ㄺ', 'ㄻ', 'ㄼ', 'ㄽ', 'ㄾ', 'ㄿ', 'ㅀ', 'ㅁ',
+    '', 'ㄱ', 'ㄲ', 'ㄳ', 'ㄴ', 'ㄵ', 'ㄶ', 'ㄷ', 'ㄹ', 'ㄺ', 'ㄻ', 'ㄼ', 'ㄽ', 'ㄾ', 'ㄿ', 'ㅀ', 'ㅁ',
     'ㅂ', 'ㅄ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'
 ]
 
@@ -119,19 +119,20 @@ def is_Middle_Joinable(a, b):
     if (a in COMPLEX_MO_HASH and b in COMPLEX_MO_HASH[a]) : 
         return COMPLEX_MO_HASH[a][b]
     else:
-        return False
+        return 0
 
 def is_Last_Joinable(a, b):
     if a in COMPLEX_JA_HASH and b in COMPLEX_JA_HASH[a]:
         return COMPLEX_JA_HASH[a][b]  
     else: 
-        return False
+        return 0
 
 def merge(string):
     mode = 0
+    code = 0
     prev_code = 0
     result = []
-    comp_idx = -1
+    comp_idx = -1 # 완성된 곳 idx
     korean = ''
     middle1 = 0
     _first = 0
@@ -139,7 +140,7 @@ def merge(string):
     last1 = 0
     last2 = 0
 
-    def createKorean(idx):
+    def createKorean(idx): # comp_idx + 1 부터 idx까지
         nonlocal comp_idx
         nonlocal _first
         nonlocal middle1
@@ -147,20 +148,23 @@ def merge(string):
         nonlocal last1
         nonlocal last2
         nonlocal result
+        
+        last1 = 0
+
         if comp_idx + 1 > idx:
             return
         
         step = 1
         while(True):
-            
             if step == 1:
                 _first = ord(string[comp_idx + step])
                 if is_Middle(_first): # 차음이 모음이면 ㅏ or ㅙ 같은 경우
-                    middle1 = ord(string[comp_idx + step + 1])
-                    if comp_idx + step + 1 <= idx and is_Middle(middle1): # 다음 있고 다음도 모음이면
-                        result.append(chr(is_Middle_Joinable(_first, middle1)))
-                        comp_idx = idx
-                        return
+                    if comp_idx + step + 1 <= idx: # 다음 있고 다음도 모음이면
+                        middle1 = ord(string[comp_idx + step + 1])
+                        if is_Middle(middle1):
+                            result.append(chr(is_Middle_Joinable(_first, middle1)))
+                            comp_idx = idx
+                            return
                     else:
                         result.append(string[comp_idx + step])
                         comp_idx = idx
@@ -206,15 +210,21 @@ def merge(string):
                 return
 
             step += 1
-
-    for i, char in enumerate(string):
-
+            
+    index = 0
+    for char in string:
+        
         code = ord(char)
-
         if not is_First(code) and not is_Middle(code) and not is_Last(code):
-            createKorean(i-1)
-            createKorean(i)
+            if is_Korean(code):
+                result.append(char)
+                index += 1
+                continue
+            createKorean(index-1)
+            createKorean(index)
+            #result.append(char)
             mode = 0
+            index += 1
             continue
         
         if mode == 0: # 초성 차례
@@ -230,50 +240,51 @@ def merge(string):
                     # 합쳐질 수 있다면 ㄻ 같은 경우인데 이 뒤에 모음이 와서 ㄹ마 가 될수도 있고 초성이 올 수도 있다. 따라서 섣불리 완성할 수 없으니 나중에 처리
                     mode = 5
                 else: # 합쳐질 수 없다면 앞 글자 완성 후 중성 체크
-                    createKorean(i-1)
+                    createKorean(index-1)
         elif mode == 2: # 종성 차례
             if is_Last(code): # 종성 다음엔 자음 or 모음
                 mode = 3
             elif is_Middle(code): # 종성이 아닌 중성이 왔다면 앞 모음과 합칠 수 있는지 확인
                 if not is_Middle_Joinable(prev_code, code): # 합칠 수 없다면 오타
-                    createKorean(i -1)
+                    createKorean(index -1)
                     mode = 4
                 # 합쳐진다면 그대로
             else: # 받침이 안되는 자음이라면 쌍자음 같은 애들로 만들고 다시
-                createKorean(i-1)
+                createKorean(index-1)
                 mode = 1
         elif mode == 3 : # 종성이 하나 온 상태.
             if is_Last(code) : # 또 종성이면 합칠수 있는지 본다.
                 if not is_Last_Joinable(prev_code, code): #없으면 한글자 완성
-                    createKorean(i-1)
+                    createKorean(index-1)
                     mode = 1; # 이 종성이 초성이 되고 중성부터 시작
                 #합칠 수 있으면 계속 진행. 왜냐하면 이번에 온 자음이 다음 글자의 초성이 될 수도 있기 때문
             elif is_First(code): # 초성이면 한글자 완성.
-                createKorean(i-1)
+                createKorean(index-1)
                 mode = 1 # 이 글자가 초성이되므로 중성부터 시작
             elif is_Middle(code): # 중성이면 이전 종성은 이 중성과 합쳐지고 앞 글자는 받침이 없다.
-                createKorean(i-2)
+                createKorean(index-2)
                 mode = 2
         elif mode == 4: # 중성이 하나 온 상태
             if is_Middle(code): # 중성이 온 경우
                 if is_Middle_Joinable(prev_code, code): # 이전 중성과 합쳐질 수 있는 경우
-                    createKorean(i)
+                    createKorean(index)
                     mode = 0
                 else: #//중성이 왔지만 못합치는 경우. ㅒㅗ 같은
-                    createKorean(i-1)
+                    createKorean(index-1)
             else: # 아니면 자음이 온 경우.
-                createKorean(i-1);
+                createKorean(index-1)
                 mode = 1
         elif mode == 5: # 초성이 연속해서 두개 온 상태 ㄺ
             if is_Middle(code): # 이번에 중성이면 ㄹ가
-                createKorean(i-2)
+                createKorean(index-2)
                 mode = 2
             else:
-                createKorean(i-1)
+                createKorean(index-1)
                 mode = 1
         prev_code = code
-    createKorean(i-1)
-    print(result)
+        index += 1
+    createKorean(index-1)
+    #print(result)
     return "".join(result)
 
 
@@ -297,12 +308,13 @@ while mode != 'q':
     print("영어로 입력하면 한글로 바꿔줍니다!")
 
     eng = input("영어로 입력하세요 : ")
-    
+ 
     kor = []
     for char in eng:
-        kor.append(twobulsik[char])
-    
-    #print(kor)
+        if is_Korean(ord(char)):
+            kor.append(char)
+        else:
+            kor.append(twobulsik[char])
 
     print("{result}".format(result=merge(kor)))
 
